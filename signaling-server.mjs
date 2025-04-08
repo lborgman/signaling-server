@@ -3,7 +3,7 @@
 // Partly from Grok
 
 // @ts-check
-const VERSION = "0.0.1";
+const VERSION = "0.0.01";
 logInfo(`signaling-server.mjs version ${VERSION} loaded`);
 
 const msStarting = Date.now();
@@ -11,12 +11,15 @@ const msStarting = Date.now();
 
 import { WebSocketServer } from 'ws';
 import chalk from 'chalk';
-import os from 'os';
+// import os from 'os';
 
 const PORT = 3000;
+// console.log(process);
+// console.log(process.env);
+// console.log(process.env.HOSTNAME);
 // const HOSTNAME = process.env.HOSTNAME || os.hostname() || 'localhost';
-// const HOSTNAME = process.env.HOSTNAME || 'localhost';
-const HOSTNAME = 'localhost';
+const HOSTNAME = process.env.HOSTNAME || 'localhost';
+// const HOSTNAME = 'localhost';
 
 function logInfo(message) { console.log(chalk.bgBlue.white(` ${message} `)); }
 function logWarning(message) { console.log(chalk.bgYellow.black(` ${message} `)); }
