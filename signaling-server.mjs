@@ -3,7 +3,8 @@
 // Partly from Grok
 
 // @ts-check
-logInfo("signaling-server.mjs loaded");
+const VERSION = "0.0.1";
+logInfo(`signaling-server.mjs version ${VERSION} loaded`);
 
 const msStarting = Date.now();
 // console.time("startup signaling server");
