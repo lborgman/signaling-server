@@ -1,0 +1,28 @@
+{
+  "name": "signaling-server",
+  "version": "0.0.1",
+  "description": "A simple signaling server",
+  "keywords": [
+    "WebRTC",
+    "signaling"
+  ],
+  "homepage": "https://github.com/lborgman/signaling-server#readme",
+  "bugs": {
+    "url": "https://github.com/lborgman/signaling-server/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lborgman/signaling-server.git"
+  },
+  "license": "MIT",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "ws": "^8.18.1"
+  }
+}
