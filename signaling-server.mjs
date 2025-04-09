@@ -25,8 +25,8 @@ const HOSTNAME = process.env.HOSTNAME || 'localhost';
 
 let numClients = 0;
 
-function logInfo(message) { console.log(chalk.bgBlue.white(` ${message} `)); }
-function logWarning(message) { console.log(chalk.bgYellow.black(` ${message} `)); }
+function logInfo(message) { console.log(chalk.bgBlue.white(` INFO ${message} `)); }
+function logImportant(message) { console.log(chalk.bgMagenta.black(` IMPORTANT ${message} `)); }
 /**
  * @param {string} where 
  * @param {Error|string} error 
@@ -70,7 +70,7 @@ try {
       }
     }
     // const ws = event.target;
-    logInfo('New client connected'); // , { ws });
+    logImportant('New client connected'); // , { ws });
 
     ws.on("message", (event) => {
       const txtMessage = event.toString("utf8");
@@ -98,7 +98,7 @@ try {
         case "client-init":
           handleFirstMessage();
           for (const [fromClient, roomOffer] of pendingOffers) {
-            console.log("pendingOffers", { room });
+            // console.log("pendingOffers", { room });
             if (roomOffer.room == room) {
               const jsonFirst = wmapClientFirstMsg.get(fromClient);
               console.log({ jsonFirst });
@@ -202,7 +202,7 @@ try {
     // ws.on("message", (event) => { throw new Error("on message 2"); });
     ws.on("error", (event) => logError('Client error:', event.message));
     ws.on("close", () => {
-      logInfo('Got "close" event ');
+      logImportant('Got "close" event ');
       const room = wmapClientRoom.get(ws);
       const showRoom = room || "(Not set)";
       logInfo(`Client disconnected, room: ${showRoom}`);
@@ -225,7 +225,7 @@ try {
 }
 
 function closeServer() {
-  logWarning('Initiating server shutdown');
+  logImportant('Initiating server shutdown');
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.close(1000, 'Server shutting down');
@@ -240,7 +240,7 @@ function closeServer() {
   });
 }
 function _closeServerWithDelay(seconds) {
-  logWarning(`Will close server after ${seconds} seconds)`);
+  logImportant(`Will close server after ${seconds} seconds)`);
   setTimeout(() => {
     logInfo(`Closing server now (already waited ${seconds} seconds)`);
     closeServer();
@@ -249,7 +249,7 @@ function _closeServerWithDelay(seconds) {
 // _closeServerWithDelay(15);
 
 function forwardOffer(offer, fromClientId, toClient) {
-  logWarning("forWardOffer from " + fromClientId);
+  logImportant("forWardOffer from " + fromClientId);
   const objForwardOffer = {
     type: 'offer',
     offer: offer,
