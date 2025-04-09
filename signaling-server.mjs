@@ -3,7 +3,7 @@
 // Partly from Grok
 
 // @ts-check
-const VERSION = "0.0.01";
+const VERSION = "0.0.02";
 logInfo(`signaling-server.mjs version ${VERSION} loaded`);
 
 const msStarting = Date.now();
@@ -13,13 +13,17 @@ import { WebSocketServer } from 'ws';
 import chalk from 'chalk';
 // import os from 'os';
 
+const pendingOffers = new Map(); // Store offers until peers connect
 const PORT = 3000;
+
 // console.log(process);
 // console.log(process.env);
 // console.log(process.env.HOSTNAME);
 // const HOSTNAME = process.env.HOSTNAME || os.hostname() || 'localhost';
 const HOSTNAME = process.env.HOSTNAME || 'localhost';
 // const HOSTNAME = 'localhost';
+
+let numClients = 0;
 
 function logInfo(message) { console.log(chalk.bgBlue.white(` ${message} `)); }
 function logWarning(message) { console.log(chalk.bgYellow.black(` ${message} `)); }
@@ -45,7 +49,26 @@ try {
 
   wss.on("connection", (ws) => {
     let room;
-    function logMessage(typeMsg, message) { console.log(chalk.bgGreen.white(` ws.on got message type "${typeMsg}"`), message); }
+    let myId;
+    let clientNum;
+    function logMessage(typeMsg, txt) {
+      console.log(chalk.bgGreen.white(` ws.on got message type "${typeMsg}"`), txt);
+    }
+    function logClientMessage(typeMsg, clientNum, clientId) {
+      switch (clientNum) {
+        case 1:
+          console.log(chalk.bgGreen.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
+          break;
+        case 2:
+          console.log(chalk.bgYellow.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
+          break;
+        default:
+          const msg = `Unrecognized clientNum: ${clientNum}`;
+          console.error(msg);
+          logError(msg, "");
+        // throw Error(msg);
+      }
+    }
     // const ws = event.target;
     logInfo('New client connected'); // , { ws });
 
@@ -68,36 +91,39 @@ try {
 
       const typeMessage = objMessage.type;
       const clientId = objMessage.clientId;
-      logMessage(typeMessage, txtMessage);
+      let showNum = clientNum || numClients + 1
+      logClientMessage(typeMessage, showNum, myId);
+      // logMessage(typeMessage, 
       switch (typeMessage) {
         case "client-init":
           handleFirstMessage();
+          for (const [fromClient, roomOffer] of pendingOffers) {
+            console.log("pendingOffers", { room });
+            if (roomOffer.room == room) {
+              const jsonFirst = wmapClientFirstMsg.get(fromClient);
+              console.log({ jsonFirst });
+              const objFirst = JSON.parse(jsonFirst);
+              const fromId = objFirst.myId;
+              console.log({ fromId });
+              const toClient = ws;
+              forwardOffer(roomOffer.offer, fromId, toClient);
+            }
+          }
+
           break;
         case "candidate":
         case "answer":
           handleCandidateAndAnswerMessage();
           break;
         case "offer":
-          // throw new Error("offer message support not implemented yet");
-          console.log({ mapRoomClients });
-          console.log({ room });
+          pendingOffers.set(ws, { room, offer: objMessage.offer });
           const setRoom = mapRoomClients.get(room);
           const numClients = setRoom.size;
           if (numClients > 1) {
             logInfo(`sending offer to clieants in room "${room}"`);
-            setRoom.forEach((client) => {
-              if (client !== ws && client.readyState === WebSocket.OPEN) {
-                try {
-                  client.send(JSON.stringify({
-                    type: 'offer',
-                    // offer: data.offer,
-                    offer: objMessage.offer,
-                    // from: ws.customData.id
-                    from: clientId,
-                  }));
-                } catch (error) {
-                  console.error('Send error:', error.message);
-                }
+            setRoom.forEach((toClient) => {
+              if (toClient !== ws && toClient.readyState === WebSocket.OPEN) {
+                forwardOffer(objMessage.offer, clientId, toClient);
               }
             });
           }
@@ -107,18 +133,21 @@ try {
       }
       return;
       function handleFirstMessage() {
+        clientNum = ++numClients;
         room = objMessage.room;
-        logInfo(`Handling first message, room: "${room}"`);
+        myId = objMessage.myId;
+        logInfo(`Handling first message, room: "${room}, myId: ${myId}", clientNum: ${clientNum}`);
+        // console.log("objMessage", objMessage);
         wmapClientFirstMsg.set(ws, txtMessage);
         wmapClientRoom.set(ws, room);
         if (!mapRoomClients.has(room)) {
           mapRoomClients.set(room, new Set());
         }
         const setRoom = mapRoomClients.get(room);
-        const numClients = setRoom.size;
-        console.log('Number of clients in room:', numClients);
+        const numRoomClients = setRoom.size;
+        console.log('Number of clients in room:', numRoomClients);
         setRoom.add(ws);
-        console.log({ mapRoomClients });
+        // console.log({ mapRoomClients });
         return;
 
         if (!wmapClientFirstMsg.has(ws)) {
@@ -143,7 +172,21 @@ try {
         }
       }
       function handleCandidateAndAnswerMessage() {
+        const room = wmapClientRoom.get(ws);
+        const setRoom = mapRoomClients.get(room);
+        const numClients = setRoom.size;
+        // console.log('Number of clients in room:', numClients);
+        setRoom.forEach((client) => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            try {
+              client.send(txtMessage);
+            } catch (error) {
+              console.error('Send error:', error.message);
+            }
+          }
+        });
       }
+      /*
       wss.clients.forEach((client) => {
         if (client !== ws && client.readyState === WebSocket.OPEN) {
           try {
@@ -153,6 +196,7 @@ try {
           }
         }
       });
+      */
     });
 
     // ws.on("message", (event) => { throw new Error("on message 2"); });
@@ -165,6 +209,7 @@ try {
       wmapClientFirstMsg.delete(ws);
       wmapClientRoom.delete(ws);
       if (room) { mapRoomClients.get(room).delete(ws); }
+      pendingOffers.delete(ws);
     });
   });
 
@@ -202,3 +247,18 @@ function _closeServerWithDelay(seconds) {
   }, 1000 * seconds);
 }
 // _closeServerWithDelay(15);
+
+function forwardOffer(offer, fromClientId, toClient) {
+  logWarning("forWardOffer from " + fromClientId);
+  const objForwardOffer = {
+    type: 'offer',
+    offer: offer,
+    // from: clientId,
+    from: fromClientId,
+  };
+  try {
+    toClient.send(JSON.stringify(objForwardOffer));
+  } catch (error) {
+    console.error('Send error:', error.message);
+  }
+}
