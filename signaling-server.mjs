@@ -13,7 +13,7 @@ import { WebSocketServer } from 'ws';
 import chalk from 'chalk';
 // import os from 'os';
 
-const pendingOffers = new Map(); // Store offers until peers connect
+// const pendingOffers = new Map(); // Store offers until peers connect
 const PORT = 3000;
 
 // console.log(process);
@@ -23,7 +23,7 @@ const PORT = 3000;
 const HOSTNAME = process.env.HOSTNAME || 'localhost';
 // const HOSTNAME = 'localhost';
 
-let numClients = 0;
+let numServerClients = 0;
 
 function logInfo(message) { console.log(chalk.bgBlue.white(` INFO ${message} `)); }
 function logImportant(message) { console.log(chalk.bgMagenta.black(` IMPORTANT ${message} `)); }
@@ -41,6 +41,7 @@ function logError(where, error, ...rest) {
 const wmapClientFirstMsg = new WeakMap();
 const wmapClientRoom = new WeakMap();
 const mapRoomClients = new Map(); // room -> Set of clients
+const mapRoomOffers = new Map(); // room -> Set of offers
 
 let wss;
 try {
@@ -55,6 +56,7 @@ try {
       console.log(chalk.bgGreen.white(` ws.on got message type "${typeMsg}"`), txt);
     }
     function logClientMessage(typeMsg, clientNum, clientId) {
+      // Special colors for first two for debugging
       switch (clientNum) {
         case 1:
           console.log(chalk.bgGreen.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
@@ -63,10 +65,10 @@ try {
           console.log(chalk.bgYellow.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
           break;
         default:
-          const msg = `Unrecognized clientNum: ${clientNum}`;
-          console.error(msg);
-          logError(msg, "");
-        // throw Error(msg);
+          // const msg = `Unrecognized clientNum: ${clientNum}`;
+          // console.error(msg);
+          // logError(msg, "");
+          console.log(chalk.bgCyan.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
       }
     }
     // const ws = event.target;
@@ -91,12 +93,13 @@ try {
 
       const typeMessage = objMessage.type;
       const clientId = objMessage.clientId;
-      let showNum = clientNum || numClients + 1
+      let showNum = clientNum || numServerClients + 1
       logClientMessage(typeMessage, showNum, myId);
       // logMessage(typeMessage, 
       switch (typeMessage) {
         case "client-init":
           handleFirstMessage();
+          /*
           for (const [fromClient, roomOffer] of pendingOffers) {
             // console.log("pendingOffers", { room });
             if (roomOffer.room == room) {
@@ -109,6 +112,7 @@ try {
               forwardOffer(roomOffer.offer, fromId, toClient);
             }
           }
+          */
 
           break;
         case "candidate":
@@ -116,66 +120,86 @@ try {
           handleCandidateAndAnswerMessage();
           break;
         case "offer":
-          pendingOffers.set(ws, { room, offer: objMessage.offer });
-          const setRoom = mapRoomClients.get(room);
-          const numClients = setRoom.size;
-          if (numClients > 1) {
-            logInfo(`sending offer to clieants in room "${room}"`);
-            setRoom.forEach((toClient) => {
-              if (toClient !== ws && toClient.readyState === WebSocket.OPEN) {
-                forwardOffer(objMessage.offer, clientId, toClient);
+          // pendingOffers.set(ws, { room, offer: objMessage.offer });
+          const weakmapOffers = mapRoomOffers.get(room);
+          weakmapOffers.set(ws, objMessage.offer);
+          // const numOffers = weakmapOffers.size;
+          const setClients = mapRoomClients.get(room);
+          const numClients = setClients.size;
+          switch (numClients) {
+            case 1:
+              break;
+            case 2:
+              logInfo(`sending offer to clieants in room "${room}"`);
+              objMessage.isInitiator = true;
+              const arrClients = [...setClients];
+              for (const i of [0, 1]) {
+                const iFrom = i % 2;
+                const iTo = (i + 1) % 2;
+                console.log(typeof i, {i, iFrom, iTo});
+                // continue;
+                const wsFrom = arrClients[iFrom];
+                const wsTo = arrClients[iTo];
+                const offer = weakmapOffers[wsFrom];
+                // forwardOffer(offer, wsFrom, wsTo)
+                logImportant("forWardOffer2");
+                const fromFirst = wmapClientFirstMsg[wsFrom];
+                const from = fromFirst.myId;
+                const objForwardOffer = {
+                  type: 'offer',
+                  offer: offer,
+                  from,
+                  isInitiator: (i == 0),
+                };
+                try {
+                  wsTo.send(JSON.stringify(objForwardOffer));
+                } catch (error) {
+                  console.error('Send error:', error.message);
+                }
               }
-            });
+              /*
+              setClients.forEach((toClient) => {
+                if (toClient !== ws && toClient.readyState === WebSocket.OPEN) {
+                  forwardOffer(objMessage.offer, clientId, toClient);
+                  objMessage.isInitiator = false;
+                }
+              });
+              */
+              break;
+            default:
+              throw Error(`There were ${numClients} in the room "${room}"`);
           }
-          break;
+          return;
         default:
           throw Error(`Unrecognized message type: "${typeMessage}"`);
       }
       return;
       function handleFirstMessage() {
-        clientNum = ++numClients;
+        clientNum = ++numServerClients;
         room = objMessage.room;
         myId = objMessage.myId;
         logInfo(`Handling first message, room: "${room}, myId: ${myId}", clientNum: ${clientNum}`);
         // console.log("objMessage", objMessage);
         wmapClientFirstMsg.set(ws, txtMessage);
         wmapClientRoom.set(ws, room);
-        if (!mapRoomClients.has(room)) {
-          mapRoomClients.set(room, new Set());
+        if (!mapRoomClients.has(room)) { mapRoomClients.set(room, new Set()); }
+        if (!mapRoomOffers.has(room)) { mapRoomOffers.set(room, new WeakMap()); }
+        const clientsInRoom = getNumRoomClients(room);
+        console.log(`before: Number of clients in room: ${clientsInRoom}`);
+        if (clientsInRoom > 1) {
+          console.log(`Room "${room} has already 2 clients`);
+          ws.close(1000, "Room is full");
         }
         const setRoom = mapRoomClients.get(room);
-        const numRoomClients = setRoom.size;
-        console.log('Number of clients in room:', numRoomClients);
         setRoom.add(ws);
-        // console.log({ mapRoomClients });
-        return;
+        console.log(`after: Number of clients in room: ${getNumRoomClients(room)}`);
 
-        if (!wmapClientFirstMsg.has(ws)) {
-          wmapClientFirstMsg.set(ws, txtMessage);
-          const jsonMessage = JSON.parse(txtMessage);
-          const room = jsonMessage.room;
-          wmapClientRoom.set(ws, room);
-          if (!mapRoomClients.has(room)) {
-            mapRoomClients.set(room, new Set());
-          }
-
-          const setRoom = mapRoomClients.get(room);
-          const numClients = setRoom.size;
-          console.log('Number of clients in room:', numClients);
-          setRoom.forEach((client) => {
-            const clientFirstMsg = wmapClientFirstMsg.get(client);
-            console.log('Client in room:', clientFirstMsg, client.readyState);
-            client.send(txtMessage);
-          });
-          setRoom.add(ws);
-          return;
-        }
       }
       function handleCandidateAndAnswerMessage() {
         const room = wmapClientRoom.get(ws);
         const setRoom = mapRoomClients.get(room);
         const numClients = setRoom.size;
-        // console.log('Number of clients in room:', numClients);
+        console.log('handleCandidateAndAnswerMessage: Number of clients in room:', numClients);
         setRoom.forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
             try {
@@ -203,13 +227,17 @@ try {
     ws.on("error", (event) => logError('Client error:', event.message));
     ws.on("close", () => {
       logImportant('Got "close" event ');
-      const room = wmapClientRoom.get(ws);
-      const showRoom = room || "(Not set)";
-      logInfo(`Client disconnected, room: ${showRoom}`);
-      wmapClientFirstMsg.delete(ws);
-      wmapClientRoom.delete(ws);
-      if (room) { mapRoomClients.get(room).delete(ws); }
-      pendingOffers.delete(ws);
+      closeClient(ws);
+      function closeClient(ws) {
+        const room = wmapClientRoom.get(ws);
+        const showRoom = room || "(Not set)";
+        const numInRoom = room ? getNumRoomClients() : "(Room not found)";
+        logInfo(`Client disconnecting, room: ${showRoom}, num in room: ${numInRoom}`);
+        wmapClientFirstMsg.delete(ws);
+        wmapClientRoom.delete(ws);
+        if (room) { mapRoomClients.get(room).delete(ws); }
+        pendingOffers.delete(ws);
+      }
     });
   });
 
@@ -261,4 +289,14 @@ function forwardOffer(offer, fromClientId, toClient) {
   } catch (error) {
     console.error('Send error:', error.message);
   }
+}
+
+function getNumRoomClients(room) {
+  // FIX-ME: setRoom == undefined when room has no clients, why??
+  // console.log("getNumRoomClients", { mapRoomClients });
+  const setRoom = mapRoomClients.get(room);
+  const numRoomClients = setRoom?.size;
+  // console.log({ numRoomClients });
+  // console.log({ mapRoomClients });
+  return numRoomClients;
 }
