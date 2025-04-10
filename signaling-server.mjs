@@ -59,10 +59,10 @@ try {
       // Special colors for first two for debugging
       switch (clientNum) {
         case 1:
-          console.log(chalk.bgGreen.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
+          console.log(chalk.bgGreen.black(` ws.on got message type "${typeMsg}", clientNum:${clientNum}, id:${clientId}`));
           break;
         case 2:
-          console.log(chalk.bgYellow.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
+          console.log(chalk.bgYellow.black(` ws.on got message type "${typeMsg}", clientNum:${clientNum}, id:${clientId}`));
           break;
         default:
           // const msg = `Unrecognized clientNum: ${clientNum}`;
@@ -92,12 +92,13 @@ try {
       // ws.terminate('TESTING TERMINATE (IGNORED)');
 
       const typeMessage = objMessage.type;
-      const clientId = objMessage.clientId;
+      const clientId = objMessage.myId;
       let showNum = clientNum || numServerClients + 1
       logClientMessage(typeMessage, showNum, myId);
       // logMessage(typeMessage, 
       switch (typeMessage) {
         case "client-init":
+          console.log(txtMessage);
           handleFirstMessage();
           /*
           for (const [fromClient, roomOffer] of pendingOffers) {
@@ -123,6 +124,7 @@ try {
           // pendingOffers.set(ws, { room, offer: objMessage.offer });
           const weakmapOffers = mapRoomOffers.get(room);
           weakmapOffers.set(ws, objMessage.offer);
+          console.log(`Saved offer in room "${room}"`);
           // const numOffers = weakmapOffers.size;
           const setClients = mapRoomClients.get(room);
           const numClients = setClients.size;
@@ -136,7 +138,7 @@ try {
               for (const i of [0, 1]) {
                 const iFrom = i % 2;
                 const iTo = (i + 1) % 2;
-                console.log(typeof i, {i, iFrom, iTo});
+                console.log(typeof i, { i, iFrom, iTo });
                 // continue;
                 const wsFrom = arrClients[iFrom];
                 const wsTo = arrClients[iTo];
@@ -158,6 +160,9 @@ try {
                   console.error('Send error:', error.message);
                 }
               }
+              const secClose = 15;
+              console.log(`Will close room ${room} in ${secClose} seconds...`);
+              setTimeout(() => closeRoom(room), secClose * 1000);
               /*
               setClients.forEach((toClient) => {
                 if (toClient !== ws && toClient.readyState === WebSocket.OPEN) {
@@ -186,15 +191,14 @@ try {
         if (!mapRoomClients.has(room)) { mapRoomClients.set(room, new Set()); }
         if (!mapRoomOffers.has(room)) { mapRoomOffers.set(room, new WeakMap()); }
         const clientsInRoom = getNumRoomClients(room);
-        console.log(`before: Number of clients in room: ${clientsInRoom}`);
+        // console.log(`before: Number of clients in room: ${clientsInRoom}`);
         if (clientsInRoom > 1) {
           console.log(`Room "${room} has already 2 clients`);
           ws.close(1000, "Room is full");
         }
         const setRoom = mapRoomClients.get(room);
         setRoom.add(ws);
-        console.log(`after: Number of clients in room: ${getNumRoomClients(room)}`);
-
+        // console.log(`after: Number of clients in room: ${getNumRoomClients(room)}`);
       }
       function handleCandidateAndAnswerMessage() {
         const room = wmapClientRoom.get(ws);
@@ -229,16 +233,6 @@ try {
     ws.on("close", () => {
       logImportant('Got "close" event ');
       closeClient(ws);
-      function closeClient(ws) {
-        const room = wmapClientRoom.get(ws);
-        const showRoom = room || "(Not set)";
-        const numInRoom = room ? getNumRoomClients() : "(Room not found)";
-        logInfo(`Client disconnecting, room: ${showRoom}, num in room: ${numInRoom}`);
-        wmapClientFirstMsg.delete(ws);
-        wmapClientRoom.delete(ws);
-        if (room) { mapRoomClients.get(room).delete(ws); }
-        pendingOffers.delete(ws);
-      }
     });
   });
 
@@ -300,4 +294,25 @@ function getNumRoomClients(room) {
   // console.log({ numRoomClients });
   // console.log({ mapRoomClients });
   return numRoomClients;
+}
+
+function closeRoom(room) {
+  const setRoom = mapRoomClients.get(room);
+  const size = getNumRoomClients(room);
+  logImportant(`Closing room "${room}, size ${size}`);
+  console.log("... changed my mind, not closing room"); return;
+  setRoom.forEach(client => {
+    closeClient(client);
+  });
+}
+function closeClient(ws) {
+  const room = wmapClientRoom.get(ws);
+  const showRoom = room || "(Not set)";
+  const numInRoom = room ? getNumRoomClients(room) : "(Room not found)";
+  logInfo(`Client disconnecting, room: ${showRoom}, num in room: ${numInRoom}`);
+  wmapClientFirstMsg.delete(ws);
+  wmapClientRoom.delete(ws);
+  if (room) { mapRoomClients.get(room).delete(ws); }
+  // FIX-ME:
+  // pendingOffers.delete(ws);
 }
