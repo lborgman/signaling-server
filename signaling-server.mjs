@@ -143,7 +143,8 @@ try {
                 const offer = weakmapOffers[wsFrom];
                 // forwardOffer(offer, wsFrom, wsTo)
                 logImportant("forWardOffer2");
-                const fromFirst = wmapClientFirstMsg[wsFrom];
+                const jsonFromFirst = wmapClientFirstMsg.get(wsFrom);
+                const fromFirst = JSON.parse(jsonFromFirst);
                 const from = fromFirst.myId;
                 const objForwardOffer = {
                   type: 'offer',
