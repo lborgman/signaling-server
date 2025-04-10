@@ -125,7 +125,13 @@ try {
           const weakmapOffers = mapRoomOffers.get(room);
           weakmapOffers.set(ws, objMessage.offer);
           console.log(`Saved offer in room "${room}"`);
-          // const numOffers = weakmapOffers.size;
+          // Test it is there
+          getRoomOffer(ws); console.log("seems saving offer is ok");
+          function getRoomOffer(wsClient) {
+            const wsOffer = weakmapOffers.get(wsClient);
+            if (!wsOffer) throw Error(`Did not find offer`);
+            return wsOffer;
+          }
           const setClients = mapRoomClients.get(room);
           const numClients = setClients.size;
           switch (numClients) {
@@ -142,8 +148,10 @@ try {
                 // continue;
                 const wsFrom = arrClients[iFrom];
                 const wsTo = arrClients[iTo];
-                const offer = weakmapOffers[wsFrom];
-                // forwardOffer(offer, wsFrom, wsTo)
+                // const offer = weakmapOffers[wsFrom];
+                const offer = getRoomOffer(wsFrom);
+                if (offer) console.log("we have offer from wsFrom");
+                if (!offer) throw Error(`Did not find offer from wsFrom`);
                 logImportant("forWardOffer2");
                 const jsonFromFirst = wmapClientFirstMsg.get(wsFrom);
                 const fromFirst = JSON.parse(jsonFromFirst);
