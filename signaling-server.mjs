@@ -65,13 +65,9 @@ try {
           console.log(chalk.bgYellow.black(` ws.on got message type "${typeMsg}", clientNum:${clientNum}, id:${clientId}`));
           break;
         default:
-          // const msg = `Unrecognized clientNum: ${clientNum}`;
-          // console.error(msg);
-          // logError(msg, "");
           console.log(chalk.bgCyan.black(` ws.on got message type "${typeMsg}", num:${clientNum}, id:${clientId}`));
       }
     }
-    // const ws = event.target;
     logImportant('New client connected'); // , { ws });
 
     ws.on("message", (event) => {
@@ -92,41 +88,23 @@ try {
       // ws.terminate('TESTING TERMINATE (IGNORED)');
 
       const typeMessage = objMessage.type;
-      const clientId = objMessage.myId;
       let showNum = clientNum || numServerClients + 1
       logClientMessage(typeMessage, showNum, myId);
-      // logMessage(typeMessage, 
       switch (typeMessage) {
         case "client-init":
           console.log(txtMessage);
           handleFirstMessage();
-          /*
-          for (const [fromClient, roomOffer] of pendingOffers) {
-            // console.log("pendingOffers", { room });
-            if (roomOffer.room == room) {
-              const jsonFirst = wmapClientFirstMsg.get(fromClient);
-              console.log({ jsonFirst });
-              const objFirst = JSON.parse(jsonFirst);
-              const fromId = objFirst.myId;
-              console.log({ fromId });
-              const toClient = ws;
-              forwardOffer(roomOffer.offer, fromId, toClient);
-            }
-          }
-          */
-
           break;
         case "candidate":
         case "answer":
           handleCandidateAndAnswerMessage();
           break;
         case "offer":
-          // pendingOffers.set(ws, { room, offer: objMessage.offer });
           const weakmapOffers = mapRoomOffers.get(room);
           weakmapOffers.set(ws, objMessage.offer);
           console.log(`Saved offer in room "${room}"`);
           // Test it is there
-          getRoomOffer(ws); console.log("seems saving offer is ok");
+          getRoomOffer(ws); console.log("Offer was saved");
           function getRoomOffer(wsClient) {
             const wsOffer = weakmapOffers.get(wsClient);
             if (!wsOffer) throw Error(`Did not find offer`);
@@ -168,17 +146,12 @@ try {
                   console.error('Send error:', error.message);
                 }
               }
-              const secClose = 15;
-              console.log(`Will close room ${room} in ${secClose} seconds...`);
-              setTimeout(() => closeRoom(room), secClose * 1000);
-              /*
-              setClients.forEach((toClient) => {
-                if (toClient !== ws && toClient.readyState === WebSocket.OPEN) {
-                  forwardOffer(objMessage.offer, clientId, toClient);
-                  objMessage.isInitiator = false;
-                }
-              });
-              */
+
+              // closeRoomDelayed(16);
+              function closeRoomDelayed(secClose) {
+                console.log(`Will close room ${room} in ${secClose} seconds...`);
+                setTimeout(() => closeRoom(room), secClose * 1000);
+              }
               break;
             default:
               throw Error(`There were ${numClients} in the room "${room}"`);
@@ -190,6 +163,9 @@ try {
       return;
       function handleFirstMessage() {
         clientNum = ++numServerClients;
+        const objFirstReply = { type: "first-reply", clientNum };
+        const jsonFirstReply = JSON.stringify(objFirstReply);
+        ws.send(jsonFirstReply);
         room = objMessage.room;
         myId = objMessage.myId;
         logInfo(`Handling first message, room: "${room}, myId: ${myId}", clientNum: ${clientNum}`);
@@ -216,6 +192,11 @@ try {
         setRoom.forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
             try {
+              const objMessage = JSON.parse(txtMessage);
+              // console.log("send", txtMessage, objMessage);
+              // console.log("send", txtMessage);
+              // console.log("send", objMessage);
+              console.log("send", objMessage.type);
               client.send(txtMessage);
             } catch (error) {
               console.error('Send error:', error.message);
