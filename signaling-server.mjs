@@ -162,13 +162,13 @@ try {
       }
       return;
       function handleFirstMessage() {
-        clientNum = ++numServerClients;
-        const objFirstReply = { type: "first-reply", clientNum };
-        const jsonFirstReply = JSON.stringify(objFirstReply);
-        ws.send(jsonFirstReply);
         room = objMessage.room;
         myId = objMessage.myId;
+        clientNum = ++numServerClients;
         logInfo(`Handling first message, room: "${room}, myId: ${myId}", clientNum: ${clientNum}`);
+        const objFirstReply = { type: "first-reply", clientNum, myId };
+        const jsonFirstReply = JSON.stringify(objFirstReply);
+        ws.send(jsonFirstReply);
         // console.log("objMessage", objMessage);
         wmapClientFirstMsg.set(ws, txtMessage);
         wmapClientRoom.set(ws, room);
