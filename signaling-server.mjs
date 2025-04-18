@@ -88,8 +88,9 @@ try {
       // ws.terminate('TESTING TERMINATE (IGNORED)');
 
       const typeMessage = objMessage.type;
-      let showNum = clientNum || numServerClients + 1
-      logClientMessage(typeMessage, showNum, myId);
+      // let showNum = clientNum || numServerClients + 1
+      // logClientMessage(typeMessage, showNum, myId);
+      logClientMessage(typeMessage, clientNum, myId);
       switch (typeMessage) {
         case "client-init":
           console.log(txtMessage);
@@ -131,9 +132,13 @@ try {
                 if (offer) console.log("we have offer from wsFrom");
                 if (!offer) throw Error(`Did not find offer from wsFrom`);
                 logImportant("forWardOffer2");
-                const jsonFromFirst = wmapClientFirstMsg.get(wsFrom);
-                const fromFirst = JSON.parse(jsonFromFirst);
-                const from = fromFirst.myId;
+
+                // const jsonFromFirst = wmapClientFirstMsg.get(wsFrom);
+                // const fromFirst = JSON.parse(jsonFromFirst);
+                const fromFirst = wmapClientFirstMsg.get(wsFrom);
+
+                // const from= `${fromFirst.myId} / clientNum:${clientNum}`;
+                const from= `${fromFirst.myId} / ${fromFirst.clientNum}`;
                 const objForwardOffer = {
                   type: 'offer',
                   offer: offer,
@@ -165,12 +170,16 @@ try {
         room = objMessage.room;
         myId = objMessage.myId;
         clientNum = ++numServerClients;
-        logInfo(`Handling first message, room: "${room}, myId: ${myId}", clientNum: ${clientNum}`);
+        objMessage.clientNum = clientNum;
+
+        logInfo(`>>>>>>>>>>>> Handling first, room: "${room}, ids: ${myId} / ${clientNum}`);
         const objFirstReply = { type: "first-reply", clientNum, myId };
         const jsonFirstReply = JSON.stringify(objFirstReply);
         ws.send(jsonFirstReply);
-        // console.log("objMessage", objMessage);
-        wmapClientFirstMsg.set(ws, txtMessage);
+
+        // wmapClientFirstMsg.set(ws, txtMessage);
+        wmapClientFirstMsg.set(ws, objMessage);
+
         wmapClientRoom.set(ws, room);
         if (!mapRoomClients.has(room)) { mapRoomClients.set(room, new Set()); }
         if (!mapRoomOffers.has(room)) { mapRoomOffers.set(room, new WeakMap()); }
@@ -260,7 +269,8 @@ function _closeServerWithDelay(seconds) {
 }
 // _closeServerWithDelay(15);
 
-function forwardOffer(offer, fromClientId, toClient) {
+
+function OLDforwardOffer(offer, fromClientId, toClient) {
   logImportant("forWardOffer from " + fromClientId);
   const objForwardOffer = {
     type: 'offer',
